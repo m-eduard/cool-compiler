@@ -138,5 +138,9 @@ public class Compiler {
             System.err.println("Compilation halted");
             return;
         }
+
+        // Code generation
+        var codeGenVisitor = new CodeGenVisitor();
+        System.out.println(ast.accept(codeGenVisitor).render());
     }
 }
