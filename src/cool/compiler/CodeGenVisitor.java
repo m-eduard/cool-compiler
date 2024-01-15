@@ -6,6 +6,7 @@ import cool.structures.TypeSymbol;
 import org.stringtemplate.v4.ST;
 import org.stringtemplate.v4.STGroupFile;
 
+import java.io.File;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -114,8 +115,10 @@ public class CodeGenVisitor implements ASTVisitor<ST> {
 
         // Store in $a0 the address of self
 
+        String filename = getStringLabel(new File(Compiler.fileNames.get(classMethodCall.context)).getName());
+
         ST template = templates.getInstanceOf("method_call")
-                .add("filename", "test")
+                .add("filename", filename)
                 .add("line", classMethodCall.token.getLine());
 
         return template;
