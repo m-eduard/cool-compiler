@@ -2,6 +2,7 @@ package cool.compiler;
 
 import cool.parser.ASTVisitor;
 import cool.parser.nodes.*;
+import cool.structures.TypeSymbol;
 import org.stringtemplate.v4.ST;
 import org.stringtemplate.v4.STGroupFile;
 
@@ -95,6 +96,12 @@ public class CodeGenVisitor implements ASTVisitor<ST> {
 
         ST programST = templates.getInstanceOf("program");
         programST.add("data", dataSection);
+
+        // Add default classes
+        for (String defaultClass : TypeSymbol.defaultClassesAsStrings)
+            this.dataSection.add("e", templates.getInstanceOf("instanceInit")
+                            .add("class", defaultClass)
+                            .add("baseClass", defaultClass.equals(TypeSymbol.OBJECT.getName()) ? "" : TypeSymbol.OBJECT.getName()));
 
         // adaug numele tuturor fisierelor ca instante de string
 

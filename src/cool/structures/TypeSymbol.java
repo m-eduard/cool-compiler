@@ -96,6 +96,7 @@ public class TypeSymbol extends Symbol {
             TypeSymbol.OBJECT
     )).stream().map(Symbol::getName).collect(Collectors.toSet());
 
-    public static final Set<String> defaultTypesAsStrings = defaultTypes.stream()
+    public static final Set<String> defaultClassesAsStrings = defaultTypes.stream()
+            .filter(x -> !x.equals(TypeSymbol.SELF_TYPE))
             .map(Symbol::getName).collect(Collectors.toSet());
 }

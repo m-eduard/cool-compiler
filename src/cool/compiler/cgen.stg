@@ -79,13 +79,15 @@ bool_literal(value, label) ::= <<
     .word <value>
 >>
 
-instance_init(initializations) ::= <<
+instanceInit(class, baseClass, initializations) ::= <<
+<class>_init:
     addiu $sp $sp -12
     sw $fp 12($sp)
     sw $s0 8($sp)
     sw $ra 4($sp)
     addiu $fp $sp 4
     move $s0 $a0
+    jal <baseClass>_init
 <initializations>
     move $a0 $s0
     lw $fp 12($sp)
