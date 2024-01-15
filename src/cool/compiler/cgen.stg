@@ -1,3 +1,19 @@
+sequence(e) ::= "<e; separator=\"\n\">"
+sequenceSpaced(e) ::= "<e; separator=\"\n\n\">"
+
+program(data, text, textMain) ::= <<
+.data
+<data>
+
+.text
+<text>
+
+main:
+<textMain>
+	li $v0, 10
+	syscall		#exit
+>>
+
 prologue() ::= <<
 _int_tag:           # tags used for equality check by the Cool runtime
     .word 2
@@ -6,50 +22,115 @@ _string_tag:
 _bool_tag:
     .word 4
 
+    .data
+    .align  2
+    .globl  class_nameTab
+    .globl  Int_protObj
+    .globl  String_protObj
+    .globl  bool_const0
+    .globl  bool_const1
+    .globl  Main_protObj
+    .globl  _int_tag
+    .globl  _string_tag
+    .globl  _bool_tag
+_int_tag:
+    .word   2
+_string_tag:
+    .word   3
+_bool_tag:
+    .word   4
+str_const0:
+    .word   3
+    .word   5
+    .word   String_dispTab
+    .word   int_const0
+    .asciiz ""
+    .align  2
 >>
 
-string_literal(value, num_words, size_int_ref, unique_num) ::= <<
-str_const<unique_num>:
+classNameTable(e) ::= <<
+class_nameTab:
+    .word <e; separator="\n\t.word ">
+>>
+
+string_literal(value, numWords, lengthRef, label) ::= <<
+<label>:
     .word 3
-    .word <num_words>
+    .word <numWords>                # size in words
     .word Sring_dispTab
-    .word <size_int_ref>
+    .word <lengthRef>       # string length
     .asciiz <value>
-    .align 2
+    .align 2                # 2^2 alignment = 32 bits
 >>
 
-int_literal(value, unique_num) ::= <<
-int_const<unique_num>:
+int_literal(value, label) ::= <<
+<label>:
     .word 2
     .word 4
     .word Int_dispTab
     .word <value>
 >>
 
-bool_literal(value, unique_num) ::= <<
-bool_const<unique_num>:
+bool_literal(value, label) ::= <<
+<label>:
     .word 4
     .word 4
     .word Bool_dispTab
     .word <value>
 >>
 
-
-sequence(e) ::= "<e; separator=\"\n\">"
-sequenceSpaced(e) ::= "<e; separator=\"\n\n\">"
-
-program(data, textFuncs, textMain) ::= <<
-.data
-<data>
-
-.text
-<textFuncs>
-
-main:
-<textMain>
-	li $v0, 10
-	syscall		#exit
+instance_init(initializations) ::= <<
+    addiu $sp $sp -12
+    sw $fp 12($sp)
+    sw $s0 8($sp)
+    sw $ra 4($sp)
+    addiu $fp $sp 4
+    move $s0 $a0
+<initializations>
+    move $a0 $s0
+    lw $fp 12($sp)
+    lw $s0 8($sp)
+    lw $ra 4($sp)
+    addiu $sp $sp 12
+    jr $ra
 >>
+
+method_call(dispatch_label, filename, line) ::= <<
+    addiu $sp $sp -12
+    sw $fp 12($sp)
+    sw $s0 8($sp)
+    sw $ra 4($sp)
+    addiu $fp $sp 4
+    move $s0 $a0
+<load_actual_params>
+    move $a0 $s0
+    bnez $a0 <dispatch_label>
+    la $a0 <filename>
+    li $t1 <line>
+    jal _dispatch_abort
+>>
+
+push_actual_param(instance_address) ::= <<
+    la $a0 <instance_address>
+    sw $a0 0($sp)
+    addiu $sp $sp -4
+>>
+
+dispatch(method_offset, unique_num) ::= <<
+dispatch<unique_num>:
+    lw $t1 8($a0)                       # offset of the disp table is (self +) 8
+    lw $t1 <method_offset>($t1)
+    jalr $t1
+
+    lw $fp 12($sp)
+    lw $s0 8($sp)
+    lw $ra 4($sp)
+    addiu $sp $sp 12
+    jr $ra
+>>
+
+
+
 
 
 literal(value) ::= <<
@@ -122,7 +203,9 @@ call(e, dStr) ::= <<
 >>
 
 
-##############################
+
+
+
 f_def(e, dStr) ::= <<
     move $fp $sp
     sw $ra 0($sp)
@@ -135,7 +218,7 @@ f_def(e, dStr) ::= <<
 
 >>
 
-f_call ::= <<
+f_call() ::= <<
     sw $fp 0($sp)       # Build the precall sequence
     addiu $sp $sp -4
 <en>
@@ -145,5 +228,3 @@ f_call ::= <<
     ...
 jal f
 >>
-
-sequence(e) ::= "<e; separator=\"\n\">"
