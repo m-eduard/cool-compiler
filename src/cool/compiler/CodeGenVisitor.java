@@ -58,7 +58,7 @@ public class CodeGenVisitor implements ASTVisitor<ST> {
         String label = "str_const" + uniqueLabelCounter.get("String");
         ST stringLiteral = templates.getInstanceOf("string_literal")
                 .add("value", value)
-                .add("numWords", (value.length() + 1) / 4)
+                .add("numWords", (value.length() / 4 + 1) + 4)
                 .add("lengthRef", lengthRef)
                 .add("label", label);
 
