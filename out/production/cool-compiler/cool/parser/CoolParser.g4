@@ -22,7 +22,7 @@ feature:
     | lval=formal (ASSIGN init=expr)?                           #memberDef;
 
 formal:
-    name=ID COLON type=(ID | TYPE);
+    name=ID COLON type=TYPE;
 
 localVar:
     lval=formal (ASSIGN e=expr)?;
