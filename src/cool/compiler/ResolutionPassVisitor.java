@@ -111,7 +111,7 @@ public class ResolutionPassVisitor implements ASTVisitor<TypeSymbol> {
                     return null;
                 }
 
-                classScope = (ClassSymbol) SymbolTable.globals.lookup(staticType.getName());
+                classScope = getClassSymbol(SymbolTable.globals.lookup(staticType.getName()));
                 symbol = solveMethodCall(classScope, classMethodCall);
 
                 if (symbol == null)
@@ -173,16 +173,23 @@ public class ResolutionPassVisitor implements ASTVisitor<TypeSymbol> {
         Symbol actualSymbolA = SymbolTable.globals.lookup(A.getName());
         Symbol actualSymbolB = SymbolTable.globals.lookup(B.getName());
 
-        if (actualSymbolA instanceof ClassSymbol && actualSymbolB instanceof ClassSymbol) {
-            ClassSymbol baseClass = (ClassSymbol) SymbolTable.globals.lookup(
-                    ((ClassSymbol) actualSymbolA).getBaseClass());
+        if (actualSymbolA instanceof ClassSymbol) {
+//            ClassSymbol baseClass = (ClassSymbol) SymbolTable.globals.lookup(
+//                    ((ClassSymbol) actualSymbolA).getBaseClass());
 
-            while (baseClass != null && !baseClass.equals(actualSymbolA)) {
-                if (baseClass.equals(actualSymbolB))
+//            while (baseClass != null && !baseClass.equals(actualSymbolA)) {
+//                if (baseClass.equals(actualSymbolB))
+//                    return true;
+//
+//                baseClass = getClassSymbol(SymbolTable.globals.lookup(baseClass.getBaseClass()));
+//            }
+            for (Symbol sym : getClassSymbol(actualSymbolA).nestedScopes) {
+                ClassSymbol classSymbol = getClassSymbol(sym);
+                if (classSymbol.equals(getClassSymbol(actualSymbolB))) {
                     return true;
-
-                baseClass = (ClassSymbol) SymbolTable.globals.lookup(baseClass.getBaseClass());
+                }
             }
+
         } else {
             return B.equals(TypeSymbol.OBJECT);
         }
@@ -193,7 +200,7 @@ public class ResolutionPassVisitor implements ASTVisitor<TypeSymbol> {
     // Wrapper over the original checkIfSubtype, used to solve
     // references to SELF_TYPE with respect to the current scope
     private boolean checkIfSubtype(TypeSymbol A, TypeSymbol B, Scope scope) {
-        if (A.equals(B))
+        if (A.equals(B) || B.equals(TypeSymbol.OBJECT))
             return true;
 
         if (A.equals(TypeSymbol.SELF_TYPE))
@@ -229,7 +236,7 @@ public class ResolutionPassVisitor implements ASTVisitor<TypeSymbol> {
     public TypeSymbol visit(UMinus uMinus) {
         var typeSymbol = uMinus.expr.accept(this);
 
-        if (typeSymbol != TypeSymbol.INT) {
+        if (!typeSymbol.equals(TypeSymbol.INT)) {
             SymbolTable.error(uMinus.context, uMinus.expr.token,"Operand of "
                 + uMinus.token.getText()
                 + " has type "
@@ -254,7 +261,8 @@ public class ResolutionPassVisitor implements ASTVisitor<TypeSymbol> {
 
     @Override
     public TypeSymbol visit(IsVoid isVoid) {
-        return null;
+        isVoid.expr.accept(this);
+        return TypeSymbol.BOOL;
     }
 
     @Override
@@ -410,9 +418,8 @@ public class ResolutionPassVisitor implements ASTVisitor<TypeSymbol> {
                     + returnType);
         }
 
-        // Check if the method overrides a method from the parent classes
-        ClassSymbol baseClass = (ClassSymbol) SymbolTable.globals.lookup(
-                    ((ClassSymbol) id.getScope().getParent()).getBaseClass());
+        ClassSymbol baseClass = getClassSymbol(SymbolTable.globals.lookup(
+                ((ClassSymbol) id.getScope().getParent()).getBaseClass()));
 
         while (baseClass != null && !baseClass.getName().equals(id.token.getText())) {
             MethodSymbol baseMethod = baseClass.lookupMethod(id.token.getText());
@@ -460,7 +467,7 @@ public class ResolutionPassVisitor implements ASTVisitor<TypeSymbol> {
                 }
             }
 
-            baseClass = (ClassSymbol) SymbolTable.globals.lookup(baseClass.getBaseClass());
+            baseClass = getClassSymbol(SymbolTable.globals.lookup(baseClass.getBaseClass()));
         }
 
         return returnType;
@@ -825,5 +832,17 @@ public class ResolutionPassVisitor implements ASTVisitor<TypeSymbol> {
             lastType = expr.accept(this);
 
         return lastType;
+    }
+
+    public ClassSymbol getClassSymbol(Symbol s) {
+        ClassSymbol result = null;
+
+        try {
+            result = (ClassSymbol) s;
+        } catch(Exception e) {
+            result = ((TypeSymbol) s).classSymbol;
+        }
+
+        return result;
     }
 }
