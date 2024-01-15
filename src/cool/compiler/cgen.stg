@@ -1,0 +1,149 @@
+prologue() ::= <<
+_int_tag:           # tags used for equality check by the Cool runtime
+    .word 2
+_string_tag:
+    .word 3
+_bool_tag:
+    .word 4
+
+>>
+
+string_literal(value, num_words, size_int_ref, unique_num) ::= <<
+str_const<unique_num>:
+    .word 3
+    .word <num_words>
+    .word Sring_dispTab
+    .word <size_int_ref>
+    .asciiz <value>
+    .align 2
+>>
+
+int_literal(value, unique_num) ::= <<
+int_const<unique_num>:
+    .word 2
+    .word 4
+    .word Int_dispTab
+    .word <value>
+>>
+
+bool_literal(value, unique_num) ::= <<
+bool_const<unique_num>:
+    .word 4
+    .word 4
+    .word Bool_dispTab
+    .word <value>
+>>
+
+
+sequence(e) ::= "<e; separator=\"\n\">"
+sequenceSpaced(e) ::= "<e; separator=\"\n\n\">"
+
+program(data, textFuncs, textMain) ::= <<
+.data
+<data>
+
+.text
+<textFuncs>
+
+main:
+<textMain>
+	li $v0, 10
+	syscall		#exit
+>>
+
+
+literal(value) ::= <<
+	li $a0 <value>
+>>
+
+uMinus(value) ::= <<
+<value>
+    neg $a0 $a0         #endof unary minus
+>>
+
+plus(e1, e2, dStr) ::= <<
+<e1>
+	sw $a0 0($sp)
+	addiu $sp $sp -4
+<e2>
+	lw $t1 4($sp)
+	add $a0 $t1 $a0
+	addiu $sp $sp 4		<if(dStr)># <dStr><else><endif>
+>>
+
+arithm(e1, e2, dStr, op) ::= <<
+<e1>
+	sw $a0 0($sp)
+	addiu $sp $sp -4
+<e2>
+	lw $t1 4($sp)
+	<op> $a0 $t1 $a0
+	addiu $sp $sp 4		<if(dStr)># <dStr><else><endif>
+>>
+
+rel(e1, e2, dStr, jump, uniqueNum) ::= <<
+<e1>
+	sw $a0 0($sp)
+	addiu $sp $sp -4
+<e2>
+	lw $t1 4($sp)
+<jump> $t1 $a0 true
+false<uniqueNum>:
+    li $a0 1
+    b end<uniqueNum>
+true<uniqueNum>:
+    li $a0 0
+end<uniqueNum>  <if(dStr)># <dStr><else><endif>
+>>
+
+cond(e1, e2, e3, dStr, uniqueNum) ::= <<
+<e1>
+    beqz $a0 else_branch
+then_branch<uniqueNum>:
+    <e2>
+    b end_if<uniqueNum>
+else_branch<uniqueNum>:
+    <e3>
+end_if<uniqueNum>:  <if(dStr)># <dStr><else><endif>
+>>
+
+singleParam(e1) ::= <<
+<e1>
+    sw $a0 0($sp)
+    addiu $sp $sp -4
+
+>>
+
+call(e, dStr) ::= <<
+    sw $fp 0($sp)
+    addiu $sp $sp -4
+<e>
+    jal f <if(dStr)># <dStr><else><endif>
+>>
+
+
+##############################
+f_def(e, dStr) ::= <<
+    move $fp $sp
+    sw $ra 0($sp)
+    addiu $sp $sp -4
+<e>                     # Generate code for the body
+    lw ra 4($sp)
+    addiu $sp $sp offset
+    lw $fp 0($sp)
+    jr $ra
+
+>>
+
+f_call ::= <<
+    sw $fp 0($sp)       # Build the precall sequence
+    addiu $sp $sp -4
+<en>
+    sw $a0 0($sp)
+    addiu $sp $sp -4
+<en-1>
+    ...
+jal f
+>>
+
+sequence(e) ::= "<e; separator=\"\n\">"
