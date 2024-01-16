@@ -834,7 +834,7 @@ public class ResolutionPassVisitor implements ASTVisitor<TypeSymbol> {
         return lastType;
     }
 
-    public ClassSymbol getClassSymbol(Symbol s) {
+    public static ClassSymbol getClassSymbol(Symbol s) {
         ClassSymbol result = null;
 
         try {

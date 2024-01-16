@@ -1,5 +1,6 @@
 package cool.compiler;
 
+import cool.structures.CodeGenUtils;
 import org.antlr.v4.runtime.*;
 import org.antlr.v4.runtime.tree.*;
 
@@ -138,6 +139,14 @@ public class Compiler {
             System.err.println("Compilation halted");
             return;
         }
+
+        // first, let's get the symbol graph
+        CodeGenUtils.initializeInheritanceTree();
+        CodeGenUtils.initializeClassesTags();
+
+//        System.out.println(CodeGenUtils.allClasses);
+//        System.out.println(CodeGenUtils.classesTags);
+//        System.out.println(CodeGenUtils.inheritanceTree);
 
         // Code generation
         var codeGenVisitor = new CodeGenVisitor();

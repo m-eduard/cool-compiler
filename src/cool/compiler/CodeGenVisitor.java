@@ -91,7 +91,7 @@ public class CodeGenVisitor implements ASTVisitor<ST> {
         this.classNameTable = templates.getInstanceOf("classNameTable");
         this.dataSection.add("e", this.classNameTable);
 
-        templates.getInstanceOf("prologue");
+        templates.getInstanceOf("prologue"); // TODO (AB): why this ? seems redundant
 
         program.classes.forEach(x -> this.dataSection.add("e", x.accept(this)));
 

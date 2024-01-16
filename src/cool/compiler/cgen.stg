@@ -59,7 +59,7 @@ string_literal(value, numWords, lengthRef, label) ::= <<
     .word <numWords>                # size in words
     .word Sring_dispTab
     .word <lengthRef>       # string length
-    .asciiz <value>
+    .asciiz "<value>"
     .align 2                # 2^2 alignment = 32 bits
 >>
 
