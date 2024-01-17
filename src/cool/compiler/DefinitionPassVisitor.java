@@ -142,8 +142,13 @@ public class DefinitionPassVisitor implements ASTVisitor<Void> {
         // Enter the method inner scope
         currentScope = symbol;
 
-        for (var formal: classMethodDef.formals)
+        int formalIdx = 0;
+        for (var formal: classMethodDef.formals) {
             formal.accept(this);
+
+            formal.id.getSymbol().basePtr = "$fp";
+            formal.id.getSymbol().offset = (3 + formalIdx++) * 4;
+        }
 
         classMethodDef.body.accept(this);
 
@@ -274,6 +279,8 @@ public class DefinitionPassVisitor implements ASTVisitor<Void> {
         if (letLocalVar.initExpr != null)
             letLocalVar.initExpr.accept(this);
 
+        // Change the scope only after the initialization
+        // expression was visited and has the previous scope set
         currentScope = new DefaultScope(currentScope);
         id.setScope(currentScope);
 
@@ -295,6 +302,9 @@ public class DefinitionPassVisitor implements ASTVisitor<Void> {
 
         for (LetLocalVar localVar : let.localVars) {
             localVar.accept(this);
+
+            localVar.id.getSymbol().basePtr = "$fp";
+            localVar.id.getSymbol().offset = initialScope.nextUnusedLocalVarsOffset();
         }
 
         let.body.accept(this);
@@ -307,6 +317,8 @@ public class DefinitionPassVisitor implements ASTVisitor<Void> {
     public Void visit(Case casee) {
         casee.setScope(currentScope);
         casee.expr.accept(this);
+
+        currentScope.nextUnusedLocalVarsOffset();
 
         for (var branch: casee.branches) {
             branch.accept(this);
@@ -323,6 +335,9 @@ public class DefinitionPassVisitor implements ASTVisitor<Void> {
         id.setScope(currentScope);
         var symbol = new IdSymbol(id.token.getText());
 
+        symbol.basePtr = "$fp";
+        symbol.offset = currentScope.getLastUnusedLocalVarsOffset() + 4;
+
         // The scope is empty, so it's safe not to check if symbol already exists
         currentScope.add(symbol);
         id.setSymbol(symbol);
@@ -335,7 +350,7 @@ public class DefinitionPassVisitor implements ASTVisitor<Void> {
 
     @Override
     public Void visit(Block block) {
-        currentScope = new DefaultScope(currentScope);
+        currentScope = new DefaultScope(currentScope);;
 
         for (var expr : block.expressions)
             expr.accept(this);

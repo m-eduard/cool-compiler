@@ -9,6 +9,8 @@ public class MethodSymbol extends IdSymbol implements Scope {
     private int numberOfFormals = 0;
     private Scope parent;
 
+    public int lastUnusedLocalVarsOffset = -4;
+
     public int offsetInDispTable;
     
     public MethodSymbol(String name, int numberOfFormals, Scope parent) {
@@ -82,5 +84,16 @@ public class MethodSymbol extends IdSymbol implements Scope {
     @Override
     public String toString() {
         return symbols.values().toString();
+    }
+
+    @Override
+    public int getLastUnusedLocalVarsOffset() {
+        return lastUnusedLocalVarsOffset;
+    }
+
+    @Override
+    public int nextUnusedLocalVarsOffset() {
+        this.lastUnusedLocalVarsOffset -= 4;
+        return this.lastUnusedLocalVarsOffset + 4;
     }
 }

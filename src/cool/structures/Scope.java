@@ -10,4 +10,12 @@ public interface Scope {
     public MethodSymbol lookupMethod(String name);
 
     public Scope getParent();
+
+    public default int getLastUnusedLocalVarsOffset() {
+        return -4;
+    }
+
+    public default int nextUnusedLocalVarsOffset() {
+        return -4;
+    }
 }

@@ -7,9 +7,19 @@ public class DefaultScope implements Scope {
     public Map<String, Symbol> symbols = new LinkedHashMap<>();
     
     private Scope parent;
+
+    public int lastUnusedLocalVarsOffset = -4;
     
     public DefaultScope(Scope parent) {
         this.parent = parent;
+
+        // Inherit the last unused offset from the parent scope
+        // (the current scope will have some local variables, but their
+        // offsets should not be propagated back to the parent scope, since
+        // this scope and the next child of the parent scope will not live
+        // during the same time)
+        if (parent != null)
+            this.lastUnusedLocalVarsOffset = parent.getLastUnusedLocalVarsOffset();
     }
 
     @Override
@@ -72,4 +82,14 @@ public class DefaultScope implements Scope {
         return symbols.values().toString();
     }
 
+    @Override
+    public int getLastUnusedLocalVarsOffset() {
+        return lastUnusedLocalVarsOffset;
+    }
+
+    @Override
+    public int nextUnusedLocalVarsOffset() {
+        this.lastUnusedLocalVarsOffset -= 4;
+        return this.lastUnusedLocalVarsOffset + 4;
+    }
 }
