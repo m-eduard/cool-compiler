@@ -266,6 +266,11 @@ assign(offset, e) ::= <<
     sw $a0 <offset>($fp)
 >>
 
+classMemberInit(offset, e) ::= <<
+<e>
+    sw $a0 <offset>($s0)
+>>
+
 uminus(e) ::= <<
 <e>
     lw $t1 12($a0)
@@ -309,4 +314,34 @@ isvoid(trueLabel, falseLabel, label) ::= <<
     beqz $t1 isvoid_<label>
     la $a0 <falseLabel>
 isvoid_<label>:
+>>
+
+lessOrMaybeEqual(e1, e2, trueLabel, falseLabel, label, op) ::= <<
+<e1>
+    sw $a0 0($sp)
+    addiu $sp $sp -4
+<e2>
+    lw $t2 12($a0)
+    lw $t1 4($sp)
+    lw $t1 12($t1)
+    addiu $sp $sp 4
+
+    la $a0 <trueLabel>
+    <op> $t1 $t2 less_<label>
+    la $a0 <falseLabel>
+less_<label>:
+>>
+
+equal(e1, e2, trueLabel, falseLabel, label) ::= <<
+<e1>
+    sw $a0 0($sp)
+    addiu $sp $sp -4
+<e2>
+    move $t2 $a0
+    lw $t1 4($sp)
+    addiu $sp $sp 4
+
+    la $a0 <trueLabel>
+    la $a1 <falseLabel>
+    jal equality_test
 >>

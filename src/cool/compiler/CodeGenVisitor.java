@@ -2,10 +2,7 @@ package cool.compiler;
 
 import cool.parser.ASTVisitor;
 import cool.parser.nodes.*;
-import cool.structures.ClassSymbol;
-import cool.structures.CodeGenUtils;
-import cool.structures.SymbolTable;
-import cool.structures.TypeSymbol;
+import cool.structures.*;
 import org.stringtemplate.v4.ST;
 import org.stringtemplate.v4.STGroupFile;
 
@@ -262,11 +259,51 @@ public class CodeGenVisitor implements ASTVisitor<ST> {
 
     @Override
     public ST visit(Relational relational) {
-        return null;
+        String trueLabel = getBoolLabel(true);
+        String falseLabel = getBoolLabel(false);
+
+        if (relational.token.getText().equals("<")) {
+            return templates.getInstanceOf("lessOrMaybeEqual")
+                    .add("e1", relational.left.accept(this))
+                    .add("e2", relational.right.accept(this))
+                    .add("trueLabel", trueLabel)
+                    .add("falseLabel", falseLabel)
+                    .add("label", getLabelIndex("lessOrMaybeEqual"))
+                    .add("op", "blt");
+        }
+
+        if (relational.token.getText().equals("<=")) {
+            return templates.getInstanceOf("lessOrMaybeEqual")
+                    .add("e1", relational.left.accept(this))
+                    .add("e2", relational.right.accept(this))
+                    .add("trueLabel", trueLabel)
+                    .add("falseLabel", falseLabel)
+                    .add("label", getLabelIndex("lessOrMaybeEqual"))
+                    .add("op", "ble");
+        }
+
+        return templates.getInstanceOf("equal")
+                .add("e1", relational.left.accept(this))
+                .add("e2", relational.right.accept(this))
+                .add("trueLabel", trueLabel)
+                .add("falseLabel", falseLabel)
+                .add("label", getLabelIndex("equal"));
     }
 
     @Override
     public ST visit(Id id) {
+        String name = id.token.getText();
+
+        // setezi offset si base cand parcurgi si calculezi offseti,
+        // la fel ca la method si member class
+        if (id.getSymbol().isFrom.equals("class")) {
+
+        } else {
+
+        }
+
+
+
         return null;
     }
 
@@ -303,12 +340,11 @@ public class CodeGenVisitor implements ASTVisitor<ST> {
 
     @Override
     public ST visit(ClassMemberDef classMemberDef) {
-        ST expressionEval = null;
+        if (classMemberDef.initExpr == null)
+            return null;
 
-        if (classMemberDef.initExpr != null)
-            expressionEval = classMemberDef.initExpr.accept(this);
-        return templates.getInstanceOf("assign")
-                .add("e", expressionEval)
+        return templates.getInstanceOf("classMemberInit")
+                .add("e", classMemberDef.initExpr.accept(this))
                 .add("offset", classMemberDef.id.getSymbol().offset);
     }
 
@@ -366,7 +402,6 @@ public class CodeGenVisitor implements ASTVisitor<ST> {
                 .add("class", className)
                 .add("baseClass", symbol.getBaseClass())
                 .add("initializations", initializations));
-
 
         return protObj;
     }
