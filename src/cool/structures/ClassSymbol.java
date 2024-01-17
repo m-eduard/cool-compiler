@@ -41,15 +41,14 @@ public class ClassSymbol extends IdSymbol implements Scope {
     public ClassSymbol(String name, Scope parent) {
         super(name);
         this.parent = parent;
-    }
-
-    public ClassSymbol(String name, Scope parent, ClassDef classDef) {
-        super(name);
-        this.parent = parent;
-        this.classDef = classDef;
 
         ((IdSymbol) memberSymbols.get("self")).setType(TypeSymbol.SELF_TYPE);
         ((IdSymbol) memberSymbols.get("_self")).setType(new TypeSymbol(name));
+    }
+
+    public ClassSymbol(String name, Scope parent, ClassDef classDef) {
+        this(name, parent);
+        this.classDef = classDef;
 
         // Add only the root scope (which also contain some default methods)
         nestedScopes.add(TypeSymbol.OBJECT.classSymbol);
