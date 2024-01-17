@@ -64,6 +64,55 @@ public class CodeGenUtils {
         orderedClasses.sort(Comparator.comparingInt(o -> classesTags.get(o)));
     }
 
+    public static void generateMethodsAndMembersOffsets() {
+        Queue<String> q = new LinkedList<>();
+
+        q.offer(TypeSymbol.OBJECT.getName());
+
+        while (!q.isEmpty()) {
+            String className = q.poll();
+
+            Symbol sym = SymbolTable.globals.lookup(className);
+            if (sym instanceof ClassSymbol || sym instanceof TypeSymbol) {
+                ClassSymbol classSymbol = ResolutionPassVisitor.getClassSymbol(sym);
+                String parentName = classSymbol.getBaseClass();
+                ClassSymbol parentSymbol = ResolutionPassVisitor
+                        .getClassSymbol(SymbolTable.globals.lookup(parentName));
+
+                if (parentSymbol == null && !classSymbol.equals(TypeSymbol.OBJECT.classSymbol)) {
+                    parentSymbol = TypeSymbol.OBJECT.classSymbol;
+                }
+
+                if (parentSymbol != null) {
+                    classSymbol.allMethods.addAll(parentSymbol.allMethods);
+                    classSymbol.allMembers.addAll(parentSymbol.allMembers);
+                }
+
+                for (MethodSymbol method : classSymbol.getMethods()) {
+                    int index = classSymbol.allMethods.indexOf(method);
+                    if (index == -1) {
+                        method.offsetInDispTable = classSymbol.allMethods.size() * 4;
+                        classSymbol.allMethods.add(method);
+                    } else {
+                        method.offsetInDispTable = 4 * index;
+                        classSymbol.allMethods.set(index, method);
+                    }
+                }
+
+                int index = 0;
+                for (IdSymbol member : classSymbol.allMembers) {
+                    member.offset = (3 + index) * 4;
+                    index++;
+                }
+
+                classSymbol.allMembers.addAll(classSymbol.getMembers().stream().filter((x) -> !x
+                        .getName().equals("self") && !x.getName().equals("_self")).toList());
+            }
+
+            inheritanceTree.getOrDefault(className, new ArrayList<>()).forEach(q::offer);
+        }
+    }
+
     public static void depthFirstSearch(String source, Map<String, Boolean> visited) {
         classesTags.put(source, classesTagCounter);
         classesTagCounter++;

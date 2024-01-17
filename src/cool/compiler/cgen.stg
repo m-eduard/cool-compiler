@@ -1,51 +1,25 @@
 sequence(e) ::= "<e; separator=\"\n\">"
 sequenceSpaced(e) ::= "<e; separator=\"\n\n\">"
 
-program(data, text, textMain) ::= <<
+program(data, text, classes, intTag, stringTag, boolTag) ::= <<
 .data
+    .align 2
+    .globl class_nameTab
+    .globl <classes; separator="_protObj\n\t.globl ">_protObj
+    .globl _int_tag
+    .globl _string_tag
+    .globl _bool_tag
+_int_tag:
+    .word <intTag>
+_string_tag:
+    .word <stringTag>
+_bool_tag:
+    .word <boolTag>
 <data>
-
+heap_start:
+    .word 0
 .text
 <text>
-
-main:
-<textMain>
-	li $v0, 10
-	syscall		#exit
->>
-
-prologue() ::= <<
-_int_tag:           # tags used for equality check by the Cool runtime
-    .word 2
-_string_tag:
-    .word 3
-_bool_tag:
-    .word 4
-
-    .data
-    .align  2
-    .globl  class_nameTab
-    .globl  Int_protObj
-    .globl  String_protObj
-    .globl  bool_const0
-    .globl  bool_const1
-    .globl  Main_protObj
-    .globl  _int_tag
-    .globl  _string_tag
-    .globl  _bool_tag
-_int_tag:
-    .word   2
-_string_tag:
-    .word   3
-_bool_tag:
-    .word   4
-str_const0:
-    .word   3
-    .word   5
-    .word   String_dispTab
-    .word   int_const0
-    .asciiz ""
-    .align  2
 >>
 
 classNameTable(e) ::= <<
@@ -53,27 +27,41 @@ class_nameTab:
     .word <e; separator="\n\t.word ">
 >>
 
-string_literal(value, numWords, lengthRef, label) ::= <<
+dispTable(className, methods) ::= <<
+<className>_dispTab:
+    .word <methods; separator="\n\t.word ">
+>>
+
+objectTable(content) ::= <<
+class_objTab:
+<content; separator="\n">
+>>
+
+objectTableEntry(className) ::= <<
+    .word <className>_protObj
+    .word <className>_init
+>>
+string_literal(value, numWords, lengthRef, label, tag) ::= <<
 <label>:
-    .word 3
+    .word <tag>
     .word <numWords>                # size in words
-    .word Sring_dispTab
+    .word String_dispTab
     .word <lengthRef>       # string length
     .asciiz "<value>"
     .align 2                # 2^2 alignment = 32 bits
 >>
 
-int_literal(value, label) ::= <<
+int_literal(value, label, tag) ::= <<
 <label>:
-    .word 2
+    .word <tag>
     .word 4
     .word Int_dispTab
     .word <value>
 >>
 
-bool_literal(value, label) ::= <<
+bool_literal(value, label, tag) ::= <<
 <label>:
-    .word 4
+    .word <tag>
     .word 4
     .word Bool_dispTab
     .word <value>
@@ -87,7 +75,9 @@ instanceInit(class, baseClass, initializations) ::= <<
     sw $ra 4($sp)
     addiu $fp $sp 4
     move $s0 $a0
+<if(baseClass)>
     jal <baseClass>_init
+<endif>
 <initializations>
     move $a0 $s0
     lw $fp 12($sp)
@@ -97,7 +87,7 @@ instanceInit(class, baseClass, initializations) ::= <<
     jr $ra
 >>
 
-method_call(dispatch_label, filename, line) ::= <<
+method_call(dispatch_label, filename, line) ::= << # TODO
     addiu $sp $sp -12
     sw $fp 12($sp)
     sw $s0 8($sp)
@@ -131,37 +121,23 @@ dispatch<unique_num>:
     jr $ra
 >>
 
-
-
-
-
 literal(value) ::= <<
 	li $a0 <value>
 >>
 
-uMinus(value) ::= <<
-<value>
-    neg $a0 $a0         #endof unary minus
->>
-
-plus(e1, e2, dStr) ::= <<
+arithm(e1, e2, op) ::= <<
 <e1>
-	sw $a0 0($sp)
+    lw $t1 12($a0)
+	sw $t1 0($sp)
 	addiu $sp $sp -4
 <e2>
 	lw $t1 4($sp)
-	add $a0 $t1 $a0
-	addiu $sp $sp 4		<if(dStr)># <dStr><else><endif>
->>
-
-arithm(e1, e2, dStr, op) ::= <<
-<e1>
-	sw $a0 0($sp)
-	addiu $sp $sp -4
-<e2>
-	lw $t1 4($sp)
-	<op> $a0 $t1 $a0
-	addiu $sp $sp 4		<if(dStr)># <dStr><else><endif>
+	lw $t2 12($a0)
+	<op> $t1 $t1 $t2
+	addiu $sp $sp 4
+	la $a0 Int_protObj
+    jal Object.copy
+    sw $t1 12($a0)
 >>
 
 rel(e1, e2, dStr, jump, uniqueNum) ::= <<
@@ -229,4 +205,108 @@ f_call() ::= <<
 <en-1>
     ...
 jal f
+>>
+
+genericProtObj(name, tag) ::= <<
+<name>_protObj:
+    .word <tag>
+    .word 3
+    .word <name>_dispTab
+>>
+
+intAndBoolProtObj(name, tag) ::= <<
+<name>_protObj:
+    .word <tag>
+    .word 4
+    .word <name>_dispTab
+    .word 0
+>>
+
+stringProtObj(tag, lengthTag) ::= <<
+String_protObj:
+    .word <tag>
+    .word 5
+    .word String_dispTab
+    .word <lengthTag>
+    .asciiz ""
+    .align 2
+>>
+
+protObj(className, tag, size, members, isEmpty) ::= <<
+<className>_protObj:
+    .word <tag>
+    .word <size>
+    .word <className>_dispTab
+    <if(!isEmpty)>.word <members; separator="\n\t.word"><endif>
+>>
+
+methodDefinition(className, methodName, body) ::= <<
+<className>.<methodName>:
+    addiu $sp $sp -12
+    sw $fp 12($sp)
+    sw $s0 8($sp)
+    sw $ra 4($sp)
+    addiu $fp $sp 4
+    move $s0 $a0
+<body>
+    move $a0 $s0
+    lw $fp 12($sp)
+    lw $s0 8($sp)
+    lw $ra 4($sp)
+    addiu $sp $sp 12
+    jr $ra
+>>
+
+loadInstance(e) ::= <<
+    la $a0 <e>
+>>
+
+assign(offset, e) ::= <<
+<e>
+    sw $a0 <offset>($fp)
+>>
+
+uminus(e) ::= <<
+<e>
+    lw $t1 12($a0)
+    neg $t1 $t1
+    sw $t1 12$(a0)
+>>
+
+newObject(type) ::= <<
+    la $a0 <type>_protObj
+    jal Object.copy
+    jal <type>_init
+>>
+
+newSelfType() ::= <<
+    lw $t1 0($s0)
+    la $t7 class_objTab
+    sll $t1 $t1 3
+    addu $t7 $t1 $t7
+    lw $a0 0($t7)          # _protObj
+    sw $t7 0($sp)
+    addiu $sp $sp -4
+    jal Object.copy
+    lw $t7 4($sp)
+    addiu $sp $sp 4
+    lw $t7 4($t7)          # _init
+    jalr $t7
+>>
+
+not(trueLabel, falseLabel, notLabel) ::= <<
+    la $a0 <falseLabel>
+    lw $t1 12($a0)     # bool slot
+    la $a0 <trueLabel>
+    beqz $t1 not_<notLabel>
+    la $a0 <falseLabel>
+not_<notLabel>:
+>>
+
+isvoid(trueLabel, falseLabel, label) ::= <<
+    move $t1 $a0
+    la $a0 <trueLabel>
+    beqz $t1 isvoid_<label>
+    la $a0 <falseLabel>
+isvoid_<label>:
 >>

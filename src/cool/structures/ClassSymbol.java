@@ -1,7 +1,9 @@
 package cool.structures;
 
 import cool.parser.nodes.ClassDef;
+import cool.parser.nodes.Type;
 
+import java.sql.Array;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -10,6 +12,9 @@ import java.util.Map;
 public class ClassSymbol extends IdSymbol implements Scope {
     private Map<String, Symbol> memberSymbols = new LinkedHashMap<>();
     private Map<String, Symbol> methodSymbols = new LinkedHashMap<>();
+
+    public List<MethodSymbol> allMethods = new ArrayList<>();
+    public List<IdSymbol> allMembers = new ArrayList<>();
 
     {
         memberSymbols.put("self", new IdSymbol("self"));
@@ -123,11 +128,31 @@ public class ClassSymbol extends IdSymbol implements Scope {
     }
 
     public String getBaseClass() {
+        if (baseClass == null && !name.equals(TypeSymbol.OBJECT.name)) {
+            return TypeSymbol.OBJECT.name;
+        }
+
         return baseClass;
     }
 
     @Override
     public String toString() {
         return memberSymbols.values().toString() + methodSymbols.values().toString();
+    }
+
+    public List<MethodSymbol> getMethods() {
+        return new ArrayList<>(methodSymbols.values()
+                .stream()
+                .filter(sym -> sym instanceof MethodSymbol)
+                .map(sym -> (MethodSymbol)sym)
+                .toList());
+    }
+
+    public List<IdSymbol> getMembers() {
+        return new ArrayList<>(memberSymbols.values()
+                .stream()
+                .filter(sym -> sym instanceof IdSymbol)
+                .map(sym -> (IdSymbol)sym)
+                .toList());
     }
 }

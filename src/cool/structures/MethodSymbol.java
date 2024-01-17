@@ -9,6 +9,8 @@ public class MethodSymbol extends IdSymbol implements Scope {
     private int numberOfFormals = 0;
     private Scope parent;
 
+    public int offsetInDispTable;
+    
     public MethodSymbol(String name, int numberOfFormals, Scope parent) {
         super(name);
         this.numberOfFormals = numberOfFormals;
