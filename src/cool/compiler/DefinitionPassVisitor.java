@@ -305,7 +305,7 @@ public class DefinitionPassVisitor implements ASTVisitor<Void> {
             localVar.accept(this);
 
             localVar.id.getSymbol().basePtr = "$fp";
-            localVar.id.getSymbol().offset = initialScope.nextUnusedLocalVarsOffset();
+            localVar.id.getSymbol().offset = localVar.id.getScope().nextUnusedLocalVarsOffset();
         }
 
         let.body.accept(this);
