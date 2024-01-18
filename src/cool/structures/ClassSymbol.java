@@ -43,6 +43,8 @@ public class ClassSymbol extends IdSymbol implements Scope {
         this.parent = parent;
 
         ((IdSymbol) memberSymbols.get("self")).setType(TypeSymbol.SELF_TYPE);
+        ((IdSymbol) memberSymbols.get("self")).basePtr = "$s0";
+        ((IdSymbol) memberSymbols.get("self")).offset = 0;
         ((IdSymbol) memberSymbols.get("_self")).setType(new TypeSymbol(name));
     }
 

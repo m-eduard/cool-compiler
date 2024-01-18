@@ -3,10 +3,12 @@ package cool.structures;
 import cool.compiler.ResolutionPassVisitor;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class CodeGenUtils {
     public static Map<String, List<String>> inheritanceTree = new LinkedHashMap<>();
     public static Map<String, Integer> classesTags = new LinkedHashMap<>();
+    public static Map<String, Pair<Integer, Integer>> classesRanges = new LinkedHashMap<>();
 
     public static Set<String> allClasses = new LinkedHashSet<>();
 
@@ -62,6 +64,17 @@ public class CodeGenUtils {
         orderedClasses.addAll(allClasses);
 
         orderedClasses.sort(Comparator.comparingInt(o -> classesTags.get(o)));
+
+        List<String> classesRangesOrdered = classesRanges.entrySet().stream()
+                .sorted((x, y) -> y.getValue().first - x.getValue().first)
+                .map(Map.Entry::getKey).toList();
+
+        Map<String, Pair<Integer, Integer>> tmp = new LinkedHashMap<>();
+        for (String key : classesRangesOrdered) {
+            tmp.put(key, classesRanges.get(key));
+        }
+
+        classesRanges = tmp;
     }
 
     public static void generateMethodsAndMembersOffsets() {
@@ -99,33 +112,41 @@ public class CodeGenUtils {
                     }
                 }
 
-                int index = 0;
-                for (IdSymbol member : classSymbol.allMembers) {
+                List<IdSymbol> newMembers = classSymbol.getMembers().stream().filter((x) -> !x
+                        .getName().equals("self") && !x.getName().equals("_self")).toList();
+
+                classSymbol.allMembers.addAll(newMembers);
+
+                int index = classSymbol.allMembers.size() - newMembers.size();
+                for (IdSymbol member : newMembers) {
+                    member.basePtr = "$s0";
                     member.offset = (3 + index) * 4;
                     index++;
                 }
-
-                classSymbol.allMembers.addAll(classSymbol.getMembers().stream().filter((x) -> !x
-                        .getName().equals("self") && !x.getName().equals("_self")).toList());
             }
 
             inheritanceTree.getOrDefault(className, new ArrayList<>()).forEach(q::offer);
         }
     }
 
-    public static void depthFirstSearch(String source, Map<String, Boolean> visited) {
+    public static int depthFirstSearch(String source, Map<String, Boolean> visited) {
         classesTags.put(source, classesTagCounter);
+        classesRanges.put(source, new Pair<Integer, Integer>(classesTagCounter, classesTagCounter));
         classesTagCounter++;
 
         if (inheritanceTree.get(source) == null)
-            return;
+            return classesTagCounter - 1;
 
+        int maxTagCounter = 0;
         for (String neighbour : inheritanceTree.get(source)) {
             if (!visited.get(neighbour)) {
                 visited.put(neighbour, true);
 
-                depthFirstSearch(neighbour, visited);
+                maxTagCounter = depthFirstSearch(neighbour, visited);
             }
         }
+
+        classesRanges.get(source).second = maxTagCounter;
+        return maxTagCounter;
     }
 }

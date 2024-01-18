@@ -1,8 +1,10 @@
 package cool.compiler;
 
 import cool.parser.ASTVisitor;
+import cool.parser.CoolParser;
 import cool.parser.nodes.*;
 import cool.structures.*;
+import org.antlr.v4.runtime.ParserRuleContext;
 import org.stringtemplate.v4.ST;
 import org.stringtemplate.v4.STGroupFile;
 
@@ -22,6 +24,7 @@ public class CodeGenVisitor implements ASTVisitor<ST> {
 
     // Map each class name to the number of its instances
     Map<String, Integer> uniqueLabelCounter = new HashMap<>();
+    int currentCaseLabel;
 
     // <class>.<method> mapped to its offset
     Map<String, Integer> methodOffset;
@@ -169,15 +172,46 @@ public class CodeGenVisitor implements ASTVisitor<ST> {
 
     @Override
     public ST visit(ClassMethodCall classMethodCall) {
-        // First evaluate the actual parameters
+        // Get the class context, in order to extract filename
+        ParserRuleContext context = classMethodCall.context;
+        while (! (context.getParent() instanceof CoolParser.ProgramContext))
+            context = context.getParent();
 
-        // Store in $a0 the address of self
+        String filename = getStringLabel(
+                    new File(Compiler.fileNames.get(context)
+                ).getName());
 
-        String filename = getStringLabel(new File(Compiler.fileNames.get(classMethodCall.context)).getName());
+        // Create a unique identifier for the dispatch label
+        uniqueLabelCounter.put("dispatch",
+                uniqueLabelCounter.getOrDefault("dispatch", -1) + 1);
+        int dispatchLabel = uniqueLabelCounter.get("dispatch");
 
-        ST template = templates.getInstanceOf("method_call")
+        ST template = templates.getInstanceOf("methodCall")
+                .add("dispatchLabel", dispatchLabel)
                 .add("filename", filename)
                 .add("line", classMethodCall.token.getLine());
+        ST dispatchTemplate = templates.getInstanceOf("dispatch")
+                .add("methodOffset", ((MethodSymbol) classMethodCall.id.getSymbol()).offsetInDispTable);
+        template.add("dispatch", dispatchTemplate);
+        ST actualParams = templates.getInstanceOf("sequence");
+        template.add("actualParams", actualParams);
+
+        // Evaluate and load the actual parameters
+        classMethodCall.params.reversed().forEach(x -> actualParams
+                .add("e", templates.getInstanceOf("pushActualParam")
+                        .add("expr", x.accept(this))));
+
+        if (classMethodCall.implicitDispatch) {
+
+        } else {
+            // Will load in $a0 the reference to object on which dispatch is done
+            template.add("dispatchExpr", classMethodCall.object.accept(this));
+
+            if (classMethodCall.staticType != null) {
+                dispatchTemplate.add("staticType",
+                        classMethodCall.staticType.token.getText());
+            }
+        }
 
         return template;
     }
@@ -187,6 +221,7 @@ public class CodeGenVisitor implements ASTVisitor<ST> {
         ST expressionEval = assign.expr.accept(this);
         return templates.getInstanceOf("assign")
                 .add("e", expressionEval)
+                .add("basePtr", assign.id.getSymbol().basePtr)
                 .add("offset", assign.id.getSymbol().offset);
     }
 
@@ -210,8 +245,11 @@ public class CodeGenVisitor implements ASTVisitor<ST> {
         String trueLabel = getBoolLabel(true);
         String falseLabel = getBoolLabel(false);
 
-        return templates.getInstanceOf("isvoid").add("trueLabel", trueLabel)
-                .add("falseLabel", falseLabel).add("label", getLabelIndex("isvoid"));
+        return templates.getInstanceOf("isvoid")
+                .add("expr", isVoid.expr.accept(this))
+                .add("trueLabel", trueLabel)
+                .add("falseLabel", falseLabel)
+                .add("label", getLabelIndex("isvoid"));
     }
 
     @Override
@@ -220,6 +258,7 @@ public class CodeGenVisitor implements ASTVisitor<ST> {
         String falseLabel = getBoolLabel(false);
 
         return templates.getInstanceOf("not")
+                .add("expr", not.expr.accept(this))
                 .add("trueLabel", trueLabel)
                 .add("falseLabel", falseLabel)
                 .add("notLabel", getLabelIndex("not"));
@@ -246,7 +285,7 @@ public class CodeGenVisitor implements ASTVisitor<ST> {
         return templates.getInstanceOf("arithm")
                 .add("e1", plus.left.accept(this))
                 .add("e2", plus.right.accept(this))
-                .add("op", "add");
+                .add("op", "addu");
     }
 
     @Override
@@ -292,19 +331,10 @@ public class CodeGenVisitor implements ASTVisitor<ST> {
 
     @Override
     public ST visit(Id id) {
-        String name = id.token.getText();
-
-        // setezi offset si base cand parcurgi si calculezi offseti,
-        // la fel ca la method si member class
-        if (id.getSymbol().isFrom.equals("class")) {
-
-        } else {
-
-        }
-
-
-
-        return null;
+        return templates.getInstanceOf("id")
+                .add("base", id.getSymbol().basePtr)
+                .add("offset", id.getSymbol().offset)
+                .add("isSelf", "self".equals(id.token.getText()));
     }
 
     @Override
@@ -320,8 +350,9 @@ public class CodeGenVisitor implements ASTVisitor<ST> {
 
     @Override
     public ST visit(Bool bool) {
-        return templates.getInstanceOf("loadInstance").add("e", getBoolLabel(bool.token
-                .getText().equals("True")));
+        return templates.getInstanceOf("loadInstance")
+                .add("e", getBoolLabel(bool.token
+                .getText().equals("true")));
     }
 
     @Override
@@ -331,7 +362,8 @@ public class CodeGenVisitor implements ASTVisitor<ST> {
         ST methodDef = templates.getInstanceOf("methodDefinition")
                 .add("className", enclosingClass.getName())
                 .add("methodName", classMethodDef.id.token.getText())
-                .add("body", classMethodDef.body.accept(this));
+                .add("body", classMethodDef.body.accept(this))
+                .add("freeStackSize", classMethodDef.formals.size() * 4 + 12);
 
         textSection.add("e", methodDef);
 
@@ -371,6 +403,14 @@ public class CodeGenVisitor implements ASTVisitor<ST> {
         return defaultLabel;
     }
 
+    public String getDefaultInstance(String typeName) {
+        if (typeName.equals("Int")) return getIntLabel(0);
+        if (typeName.equals("String")) return getStringLabel("");
+        if (typeName.equals("Bool")) return getBoolLabel(false);
+
+        return "0";
+    }
+
     @Override
     public ST visit(ClassDef classDef) {
         // Create a COOL String instance for class name
@@ -384,16 +424,17 @@ public class CodeGenVisitor implements ASTVisitor<ST> {
                 .add("tag", CodeGenUtils.classesTags.get(className))
                 .add("size", symbol.allMembers.size() + 3);
 
-        boolean ok = true;
+        boolean ok = symbol.allMembers.isEmpty();
+
+        for (IdSymbol member: symbol.allMembers) {
+            protObj.add("members", getDefaultInstance(member.type.getName()));
+        }
 
         for (Feature feature : classDef.features) {
-            if (feature instanceof ClassMemberDef) {
+            if (feature instanceof ClassMemberDef)
                 initializations.add("e", feature.accept(this));
-                protObj.add("members", ((ClassMemberDef) feature).type.accept(this));
-                ok = false;
-            } else {
+            else
                 feature.accept(this);
-            }
         }
 
         protObj.add("isEmpty", ok);
@@ -408,32 +449,72 @@ public class CodeGenVisitor implements ASTVisitor<ST> {
 
     @Override
     public ST visit(If iff) {
-        return null;
+        return templates.getInstanceOf("iff")
+                .add("cond", iff.cond.accept(this))
+                .add("thenBranch", iff.thenBranch.accept(this))
+                .add("elseBranch", iff.elseBranch.accept(this))
+                .add("label", getLabelIndex("if"));
     }
 
     @Override
     public ST visit(While whilee) {
-        return null;
+        return templates.getInstanceOf("while")
+                .add("cond", whilee.cond.accept(this))
+                .add("body", whilee.body.accept(this))
+                .add("label", getLabelIndex("while"));
     }
 
     @Override
     public ST visit(LetLocalVar letLocalVar) {
-        return null;
+        ST initCode = null;
+
+        if (letLocalVar.initExpr != null)
+            initCode = letLocalVar.initExpr.accept(this);
+        else
+            initCode = templates.getInstanceOf("loadDefaultValue")
+                            .add("instance", getDefaultInstance(letLocalVar.type.token.getText()));
+
+        return templates.getInstanceOf("initializeLocalVar")
+                .add("initCode", initCode)
+                .add("basePtr", letLocalVar.id.getSymbol().basePtr)
+                .add("offset", letLocalVar.id.getSymbol().offset);
     }
 
     @Override
     public ST visit(Let let) {
-        return null;
+        ST template = templates.getInstanceOf("let")
+                .add("freeStackSize", let.localVars.size() * 4);
+        template.add("body", let.body.accept(this));
+
+        let.localVars.forEach(x -> template.add(
+                "localVars", x.accept(this)));
+
+        return template;
     }
 
     @Override
     public ST visit(Case casee) {
-        return null;
+        ST template = templates.getInstanceOf("case")
+                .add("expr", casee.expr.accept(this))
+                .add("branches", casee.branches.stream()
+                        .map(x -> x.accept(this)).toList())
+                .add("label", currentCaseLabel);
+
+        currentCaseLabel++;
+        return template;
     }
 
     @Override
     public ST visit(CaseBranch caseBranch) {
-        return null;
+        Pair<Integer, Integer> range = CodeGenUtils.classesRanges.get(
+                caseBranch.type.token.getText());
+
+        return templates.getInstanceOf("caseBranch")
+                .add("body", caseBranch.body.accept(this))
+                .add("start", range.first)
+                .add("end", range.second)
+                .add("label", getLabelIndex("caseBranch"))
+                .add("caseEndLabel", currentCaseLabel);
     }
 
     @Override

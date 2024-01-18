@@ -83,7 +83,12 @@ public class MethodSymbol extends IdSymbol implements Scope {
 
     @Override
     public String toString() {
-        return symbols.values().toString();
+        return "MethodSymbol{" +
+                "symbols=" + symbols.keySet() +
+                ", numberOfFormals=" + numberOfFormals +
+                ", lastUnusedLocalVarsOffset=" + lastUnusedLocalVarsOffset +
+                ", offsetInDispTable=" + offsetInDispTable +
+                '}';
     }
 
     @Override

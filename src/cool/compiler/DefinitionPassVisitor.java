@@ -293,6 +293,7 @@ public class DefinitionPassVisitor implements ASTVisitor<Void> {
         var symbol = new IdSymbol(letLocalVar.token.getText());
         currentScope.add(symbol);
 
+        id.setSymbol(symbol);
         return null;
     }
 

@@ -120,6 +120,8 @@ public class ResolutionPassVisitor implements ASTVisitor<TypeSymbol> {
             }
         }
 
+        classMethodCall.id.setSymbol(symbol);
+
         // Check the number and type of actual arguments
         var formals = symbol.getFormals();
 

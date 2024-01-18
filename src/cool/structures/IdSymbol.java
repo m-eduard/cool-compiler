@@ -1,7 +1,8 @@
 package cool.structures;
 
 public class IdSymbol extends Symbol {
-    protected TypeSymbol type;
+    public TypeSymbol type;
+    public String basePtr;
     public int offset;
 
     public IdSymbol(String name) {

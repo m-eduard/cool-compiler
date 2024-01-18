@@ -87,42 +87,44 @@ instanceInit(class, baseClass, initializations) ::= <<
     jr $ra
 >>
 
-method_call(dispatch_label, filename, line) ::= << # TODO
-    addiu $sp $sp -12
-    sw $fp 12($sp)
-    sw $s0 8($sp)
-    sw $ra 4($sp)
-    addiu $fp $sp 4
-    move $s0 $a0
-<load_actual_params>
+methodCall(actualParams, dispatchExpr, dispatchLabel, dispatch, filename, line) ::= <<
+<actualParams>
     move $a0 $s0
-    bnez $a0 <dispatch_label>
+<dispatchExpr>
+    bnez $a0 dispatch<dispatchLabel>
     la $a0 <filename>
     li $t1 <line>
     jal _dispatch_abort
+dispatch<dispatchLabel>:
+<dispatch>
 >>
 
-push_actual_param(instance_address) ::= <<
-    la $a0 <instance_address>
+pushActualParam(expr) ::= <<
+<expr>
     sw $a0 0($sp)
     addiu $sp $sp -4
 >>
 
-dispatch(method_offset, unique_num) ::= <<
-dispatch<unique_num>:
+dispatch(methodOffset, staticType) ::= <<
+<if(staticType)>
+    la $t1 <staticType>_dispTab
+<else>
     lw $t1 8($a0)                       # offset of the disp table is (self +) 8
-    lw $t1 <method_offset>($t1)
+<endif>
+    lw $t1 <methodOffset>($t1)
     jalr $t1
-
-    lw $fp 12($sp)
-    lw $s0 8($sp)
-    lw $ra 4($sp)
-    addiu $sp $sp 12
-    jr $ra
 >>
 
 literal(value) ::= <<
 	li $a0 <value>
+>>
+
+id(base, offset, isSelf) ::= <<
+<if(isSelf)>
+    move $a0 $s0
+<else>
+    lw $a0 <offset>(<base>)
+<endif>
 >>
 
 arithm(e1, e2, op) ::= <<
@@ -136,75 +138,13 @@ arithm(e1, e2, op) ::= <<
 	<op> $t1 $t1 $t2
 	addiu $sp $sp 4
 	la $a0 Int_protObj
-    jal Object.copy
-    sw $t1 12($a0)
->>
 
-rel(e1, e2, dStr, jump, uniqueNum) ::= <<
-<e1>
-	sw $a0 0($sp)
+	sw $t1 0($sp)
 	addiu $sp $sp -4
-<e2>
+	jal Object.copy
 	lw $t1 4($sp)
-<jump> $t1 $a0 true
-false<uniqueNum>:
-    li $a0 1
-    b end<uniqueNum>
-true<uniqueNum>:
-    li $a0 0
-end<uniqueNum>  <if(dStr)># <dStr><else><endif>
->>
-
-cond(e1, e2, e3, dStr, uniqueNum) ::= <<
-<e1>
-    beqz $a0 else_branch
-then_branch<uniqueNum>:
-    <e2>
-    b end_if<uniqueNum>
-else_branch<uniqueNum>:
-    <e3>
-end_if<uniqueNum>:  <if(dStr)># <dStr><else><endif>
->>
-
-singleParam(e1) ::= <<
-<e1>
-    sw $a0 0($sp)
-    addiu $sp $sp -4
-
->>
-
-call(e, dStr) ::= <<
-    sw $fp 0($sp)
-    addiu $sp $sp -4
-<e>
-    jal f <if(dStr)># <dStr><else><endif>
->>
-
-
-
-
-
-f_def(e, dStr) ::= <<
-    move $fp $sp
-    sw $ra 0($sp)
-    addiu $sp $sp -4
-<e>                     # Generate code for the body
-    lw ra 4($sp)
-    addiu $sp $sp offset
-    lw $fp 0($sp)
-    jr $ra
-
->>
-
-f_call() ::= <<
-    sw $fp 0($sp)       # Build the precall sequence
-    addiu $sp $sp -4
-<en>
-    sw $a0 0($sp)
-    addiu $sp $sp -4
-<en-1>
-    ...
-jal f
+	addiu $sp $sp 4
+    sw $t1 12($a0)
 >>
 
 genericProtObj(name, tag) ::= <<
@@ -237,10 +177,10 @@ protObj(className, tag, size, members, isEmpty) ::= <<
     .word <tag>
     .word <size>
     .word <className>_dispTab
-    <if(!isEmpty)>.word <members; separator="\n\t.word"><endif>
+    <if(!isEmpty)>.word <members; separator="\n.word "><endif>
 >>
 
-methodDefinition(className, methodName, body) ::= <<
+methodDefinition(className, methodName, body, freeStackSize) ::= <<
 <className>.<methodName>:
     addiu $sp $sp -12
     sw $fp 12($sp)
@@ -249,11 +189,10 @@ methodDefinition(className, methodName, body) ::= <<
     addiu $fp $sp 4
     move $s0 $a0
 <body>
-    move $a0 $s0
     lw $fp 12($sp)
     lw $s0 8($sp)
     lw $ra 4($sp)
-    addiu $sp $sp 12
+    addiu $sp $sp <freeStackSize>
     jr $ra
 >>
 
@@ -261,9 +200,9 @@ loadInstance(e) ::= <<
     la $a0 <e>
 >>
 
-assign(offset, e) ::= <<
+assign(basePtr, offset, e) ::= <<
 <e>
-    sw $a0 <offset>($fp)
+    sw $a0 <offset>(<basePtr>)
 >>
 
 classMemberInit(offset, e) ::= <<
@@ -275,7 +214,7 @@ uminus(e) ::= <<
 <e>
     lw $t1 12($a0)
     neg $t1 $t1
-    sw $t1 12$(a0)
+    sw $t1 12($a0)
 >>
 
 newObject(type) ::= <<
@@ -299,16 +238,17 @@ newSelfType() ::= <<
     jalr $t7
 >>
 
-not(trueLabel, falseLabel, notLabel) ::= <<
-    la $a0 <falseLabel>
-    lw $t1 12($a0)     # bool slot
+not(expr, trueLabel, falseLabel, notLabel) ::= <<
+<expr>
+    lw $t1 12($a0)          # bool slot
     la $a0 <trueLabel>
     beqz $t1 not_<notLabel>
     la $a0 <falseLabel>
 not_<notLabel>:
 >>
 
-isvoid(trueLabel, falseLabel, label) ::= <<
+isvoid(expr, trueLabel, falseLabel, label) ::= <<
+<expr>
     move $t1 $a0
     la $a0 <trueLabel>
     beqz $t1 isvoid_<label>
@@ -342,6 +282,62 @@ equal(e1, e2, trueLabel, falseLabel, label) ::= <<
     addiu $sp $sp 4
 
     la $a0 <trueLabel>
+    beq $t1 $t2 equals<label>
+
     la $a1 <falseLabel>
     jal equality_test
+equals<label>:
+>>
+
+loadDefaultValue(instance) ::= <<
+    la $a0 <instance>
+>>
+
+initializeLocalVar(basePtr, offset, initCode) ::= <<
+<initCode>
+    sw $a0 <offset>(<basePtr>)
+>>
+
+let(localVars, body, freeStackSize) ::= <<
+    addiu $sp $sp -<freeStackSize>
+<localVars; separator="\n">
+<body>
+    addiu $sp $sp <freeStackSize>
+>>
+
+iff(cond, thenBranch, elseBranch, label) ::= <<
+<cond>
+    lw $t1 12($a0)
+    beqz $t1 elseBranch<label>
+<thenBranch>
+    b end<label>
+elseBranch<label>:
+<elseBranch>
+end<label>:
+>>
+
+while(cond, body, label) ::= <<
+startWhile<label>:
+<cond>
+    lw $t1 12($a0)
+    beqz $t1 endWhile<label>
+<body>
+    b startWhile<label>
+endWhile<label>:
+    li $a0 0
+>>
+
+case(expr, branches, label) ::= <<
+<expr>
+    lw $t1 0($a0)           # get class tag from instance
+<branches; separator="\n">
+caseEnd<label>:
+>>
+
+caseBranch(body, start, end, label, caseEndLabel) ::= <<
+    blt $t1     <start> fail<label>
+    bgt $t1     <end>   fail<label>
+<body>
+    b caseEnd<caseEndLabel>
+fail<label>:
 >>
