@@ -89,7 +89,7 @@ instanceInit(class, baseClass, initializations) ::= <<
 
 methodCall(actualParams, dispatchExpr, dispatchLabel, dispatch, filename, line) ::= <<
 <actualParams>
-    move $a0 $s0
+    move $a0 $s0                # self restauration after pushing params
 <dispatchExpr>
     bnez $a0 dispatch<dispatchLabel>
     la $a0 <filename>
@@ -123,8 +123,7 @@ id(base, offset, isSelf) ::= <<
 <if(isSelf)>
     move $a0 $s0
 <else>
-    lw $a0 <offset>(<base>)
-<endif>
+    lw $a0 <offset>(<base>) <endif>
 >>
 
 arithm(e1, e2, op) ::= <<
@@ -327,20 +326,24 @@ endWhile<label>:
     li $a0 0
 >>
 
-case(expr, branches, label, filename, line) ::= <<
-    addiu $sp $sp -4  # allocate one word on stack for expr result
+case(expr, branches, label, filename, line, localOffset) ::= <<
+    addiu $sp $sp -4    # allocate one word on stack for expr result
 <expr>
-    bnez $a0 caseStart<label>
+    bnez $a0 caseStart<label>   # check self and jump
     la $a0 <filename>
     li $t1 <line>
     jal _case_abort2
 caseStart<label>:
-    lw $t1 0($a0)           # get class tag from instance
+    sw $a0 <localOffset>($fp)
 <branches; separator="\n">
+    jal _case_abort
 caseEnd<label>:
+    addiu $sp $sp 4     # free the initially allocated word
 >>
 
-caseBranch(body, start, end, label, caseEndLabel) ::= <<
+caseBranch(body, start, end, label, caseEndLabel, offset) ::= <<
+    lw $a0 <offset>($fp)    # put local var in a0
+    lw $t1 0($a0)           # get class tag from instance
     blt $t1     <start> fail<label>
     bgt $t1     <end>   fail<label>
 <body>

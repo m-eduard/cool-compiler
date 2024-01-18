@@ -9,6 +9,7 @@ import org.stringtemplate.v4.ST;
 import org.stringtemplate.v4.STGroupFile;
 
 import java.io.File;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -493,13 +494,19 @@ public class CodeGenVisitor implements ASTVisitor<ST> {
                 new File(Compiler.fileNames.get(context)
                 ).getName());
 
+        // Sort branches based on the ordered ranges for types
+        casee.branches.sort(Comparator.comparingInt(x -> CodeGenUtils.classesRanges.keySet().stream().toList().indexOf(x.type.token.getText())));
+
         ST template = templates.getInstanceOf("case")
                 .add("expr", casee.expr.accept(this))
                 .add("branches", casee.branches.stream()
                         .map(x -> x.accept(this)).toList())
                 .add("label", currentCaseLabel)
                 .add("filename", filename)
-                .add("line", casee.token.getLine());
+                .add("line", casee.token.getLine())
+                // Each symbol corresponding to a case branch
+                // has the same offset
+                .add("localOffset", casee.branches.get(0).id.getSymbol().offset);
 
         currentCaseLabel++;
         return template;
@@ -515,7 +522,8 @@ public class CodeGenVisitor implements ASTVisitor<ST> {
                 .add("start", range.first)
                 .add("end", range.second)
                 .add("label", getLabelIndex("caseBranch"))
-                .add("caseEndLabel", currentCaseLabel);
+                .add("caseEndLabel", currentCaseLabel)
+                .add("offset", caseBranch.id.getSymbol().offset);
     }
 
     @Override
