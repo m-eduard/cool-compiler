@@ -327,8 +327,14 @@ endWhile<label>:
     li $a0 0
 >>
 
-case(expr, branches, label) ::= <<
+case(expr, branches, label, filename, line) ::= <<
+    addiu $sp $sp -4  # allocate one word on stack for expr result
 <expr>
+    bnez $a0 caseStart<label>
+    la $a0 <filename>
+    li $t1 <line>
+    jal _case_abort2
+caseStart<label>:
     lw $t1 0($a0)           # get class tag from instance
 <branches; separator="\n">
 caseEnd<label>:

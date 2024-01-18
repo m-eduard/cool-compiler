@@ -30,6 +30,7 @@ public class CodeGenVisitor implements ASTVisitor<ST> {
     Map<String, Integer> methodOffset;
 
     public int getLabelIndex(String name) {
+        // Update the old counter
         uniqueLabelCounter.put(name, uniqueLabelCounter.getOrDefault(name, -1) + 1);
         return uniqueLabelCounter.get(name);
     }
@@ -38,10 +39,7 @@ public class CodeGenVisitor implements ASTVisitor<ST> {
         if (intLiteralPool.containsKey(value))
             return intLiteralPool.get(value);
 
-        // Update the old counter
-        uniqueLabelCounter.put("Int", uniqueLabelCounter.getOrDefault("Int", -1) + 1);
-
-        String label = "int_const" + uniqueLabelCounter.get("Int");
+        String label = "int_const" + getLabelIndex("Int");
         ST intLiteral = templates.getInstanceOf("int_literal")
                 .add("value", value)
                 .add("label", label)
@@ -57,14 +55,11 @@ public class CodeGenVisitor implements ASTVisitor<ST> {
         if (stringLiteralPool.containsKey(value))
             return stringLiteralPool.get(value);
 
-        // Update the old counter
-        uniqueLabelCounter.put("String", uniqueLabelCounter.getOrDefault("String", -1) + 1);
-
         // Each String generates an instance of Integer,
         // used to store the length of the String's content
         String lengthRef = getIntLabel(value.length());
 
-        String label = "str_const" + uniqueLabelCounter.get("String");
+        String label = "str_const" + getLabelIndex("String");
         ST stringLiteral = templates.getInstanceOf("string_literal")
                 .add("value", value)
                 .add("numWords", (value.length() / 4 + 1) + 4)
@@ -81,10 +76,7 @@ public class CodeGenVisitor implements ASTVisitor<ST> {
         if (booleanLiteralPool.containsKey(value))
             return booleanLiteralPool.get(value);
 
-        // Update the old counter
-        uniqueLabelCounter.put("Bool", uniqueLabelCounter.getOrDefault("Bool", -1) + 1);
-
-        String label = "bool_const" + uniqueLabelCounter.get("Bool");
+        String label = "bool_const" + getLabelIndex("Bool");
         ST boolLiteral = templates.getInstanceOf("bool_literal")
                 .add("value", value ? 1 : 0)
                 .add("label", label)
@@ -182,9 +174,7 @@ public class CodeGenVisitor implements ASTVisitor<ST> {
                 ).getName());
 
         // Create a unique identifier for the dispatch label
-        uniqueLabelCounter.put("dispatch",
-                uniqueLabelCounter.getOrDefault("dispatch", -1) + 1);
-        int dispatchLabel = uniqueLabelCounter.get("dispatch");
+        int dispatchLabel = getLabelIndex("dispatch");
 
         ST template = templates.getInstanceOf("methodCall")
                 .add("dispatchLabel", dispatchLabel)
@@ -494,11 +484,22 @@ public class CodeGenVisitor implements ASTVisitor<ST> {
 
     @Override
     public ST visit(Case casee) {
+        // Get the class context, in order to extract filename
+        ParserRuleContext context = casee.context;
+        while (! (context.getParent() instanceof CoolParser.ProgramContext))
+            context = context.getParent();
+
+        String filename = getStringLabel(
+                new File(Compiler.fileNames.get(context)
+                ).getName());
+
         ST template = templates.getInstanceOf("case")
                 .add("expr", casee.expr.accept(this))
                 .add("branches", casee.branches.stream()
                         .map(x -> x.accept(this)).toList())
-                .add("label", currentCaseLabel);
+                .add("label", currentCaseLabel)
+                .add("filename", filename)
+                .add("line", casee.token.getLine());
 
         currentCaseLabel++;
         return template;
