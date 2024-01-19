@@ -319,8 +319,6 @@ public class DefinitionPassVisitor implements ASTVisitor<Void> {
         casee.setScope(currentScope);
         casee.expr.accept(this);
 
-        currentScope.nextUnusedLocalVarsOffset();
-
         for (var branch: casee.branches) {
             branch.accept(this);
         }
@@ -337,7 +335,7 @@ public class DefinitionPassVisitor implements ASTVisitor<Void> {
         var symbol = new IdSymbol(id.token.getText());
 
         symbol.basePtr = "$fp";
-        symbol.offset = currentScope.getLastUnusedLocalVarsOffset() + 4;
+        symbol.offset = currentScope.nextUnusedLocalVarsOffset();
 
         // The scope is empty, so it's safe not to check if symbol already exists
         currentScope.add(symbol);
