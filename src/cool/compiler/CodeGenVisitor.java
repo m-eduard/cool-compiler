@@ -9,9 +9,7 @@ import org.stringtemplate.v4.ST;
 import org.stringtemplate.v4.STGroupFile;
 
 import java.io.File;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 public class CodeGenVisitor implements ASTVisitor<ST> {
     static STGroupFile templates = new STGroupFile("cool/compiler/cgen.stg");
@@ -188,7 +186,10 @@ public class CodeGenVisitor implements ASTVisitor<ST> {
         template.add("actualParams", actualParams);
 
         // Evaluate and load the actual parameters
-        classMethodCall.params.reversed().forEach(x -> actualParams
+        List<Expression> tmpReversedParams = new ArrayList<>(classMethodCall.params);
+        Collections.reverse(tmpReversedParams);
+
+        tmpReversedParams.forEach(x -> actualParams
                 .add("e", templates.getInstanceOf("pushActualParam")
                         .add("expr", x.accept(this))));
 
